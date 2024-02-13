@@ -56,10 +56,10 @@ SENSOR_TYPES = []
 def _read_serialnr(hub, address):
     res = None
     try:
-        inverter_data = hub.read_holding_registers(unit=hub._modbus_addr, address=address, count=7)
+        inverter_data = hub.read_holding_registers(unit=hub._modbus_addr, address=address, count=4)
         if not inverter_data.isError(): 
             decoder = BinaryPayloadDecoder.fromRegisters(inverter_data.registers, byteorder=Endian.BIG)
-            res = decoder.decode_string(14).decode("ascii")
+            res = decoder.decode_string(8).decode("ascii")
             hub.seriesnumber = res    
     except Exception as ex: _LOGGER.warning(f"{hub.name}: attempt to read serialnumber failed at 0x{address:x}", exc_info=True)
     if not res: _LOGGER.warning(f"{hub.name}: reading serial number from address 0x{address:x} failed; other address may succeed")
@@ -440,7 +440,7 @@ class srne_plugin(plugin_base):
     def determineInverterType(self, hub, configdict):
         #global SENSOR_TYPES
         _LOGGER.info(f"{hub.name}: trying to determine inverter type")
-        seriesnumber                       = _read_serialnr(hub, 0x0)
+        seriesnumber                       = _read_serialnr(hub, 0x14)
         if not seriesnumber:  
             seriesnumber = _read_serialnr(hub, 0x300) # bug in Endian.LITTLE decoding?
             if seriesnumber and not seriesnumber.startswith(("M", "X")):
@@ -512,7 +512,8 @@ class srne_plugin(plugin_base):
                         _LOGGER.info(f"local data update callback for entity: {key} new limit: {new_max_export}")
 
 plugin_instance = srne_plugin(
-    plugin_name = 'srne', 
+    plugin_name = 'SRNE',
+    plugin_manufacturer = 'SRNE Solar',
     SENSOR_TYPES = SENSOR_TYPES_MAIN,
     NUMBER_TYPES = NUMBER_TYPES,
     BUTTON_TYPES = BUTTON_TYPES,

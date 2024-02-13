@@ -524,6 +524,7 @@ SELECT_TYPES = [
                 2: "Timing Mode",
                 3: "Passive Mode",
                 4: "Peak Cut Mode",
+                5: "Off-grid Mode",
             },
         allowedtypes = HYBRID,
         write_method = WRITE_MULTISINGLE_MODBUS,
@@ -2702,7 +2703,8 @@ SENSOR_TYPES: list[SofarModbusSensorEntityDescription] = [
                   1: "Time of Use",
                   2: "Timing Mode",
                   3: "Passive Mode",
-                  4: "Peak Cut Mode", },
+                  4: "Peak Cut Mode",
+                  5: "Off-grid Mode", },
         entity_registry_enabled_default =  False,
         allowedtypes = HYBRID,
     ),
@@ -2959,7 +2961,8 @@ class sofar_plugin(plugin_base):
         return (genmatch and xmatch and hybmatch and epsmatch and dcbmatch and pmmatch and mpptmatch) and not blacklisted
 
 plugin_instance = sofar_plugin(
-    plugin_name = 'sofar',
+    plugin_name = 'Sofar',
+    plugin_manufacturer = 'Sofar Solar',
     SENSOR_TYPES = SENSOR_TYPES,
     NUMBER_TYPES = NUMBER_TYPES,
     BUTTON_TYPES = BUTTON_TYPES,

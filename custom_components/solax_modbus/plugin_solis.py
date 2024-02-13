@@ -638,7 +638,7 @@ NUMBER_TYPES = [
         native_min_value = 0,
         native_max_value = 9900,
         native_step = 100,
-        scale = 0.01,
+        scale = 100,
         native_unit_of_measurement = UnitOfPower.WATT,
         device_class = NumberDeviceClass.POWER,
         allowedtypes = HYBRID,
@@ -750,6 +750,9 @@ SELECT_TYPES = [
                 43: "Battery Awaken + Timed Charge/Discharge",
                 49: "Backup/Reserve - No Timed Charge/Discharge",
                 51: "Backup/Reserve",
+                64: "Feed-in priority - No Grid Charging",
+                96: "Feed-in priority - No Timed Charge/Discharge",
+                98: "Feed-in priority",
             },
         allowedtypes = HYBRID,
         icon = "mdi:dip-switch",
@@ -1337,6 +1340,9 @@ SENSOR_TYPES: list[SolisModbusSensorEntityDescription] = [
                 43: "Battery Awaken + Timed Charge/Discharge",
                 49: "Backup/Reserve - No Timed Charge/Discharge",                
                 51: "Backup/Reserve",
+                64: "Feed-in priority - No Grid Charging",
+                96: "Feed-in priority - No Timed Charge/Discharge",
+                98: "Feed-in priority",
                 },
         allowedtypes = HYBRID,
     ),
@@ -2404,21 +2410,10 @@ SENSOR_TYPES: list[SolisModbusSensorEntityDescription] = [
     ),
 ]
 
-
-
 # ============================ plugin declaration =================================================
 
 @dataclass
 class solis_plugin(plugin_base):
-    
-    """
-    def isAwake(self, datadict):
-        return (datadict.get('run_mode', None) == 'Normal Mode')
-
-    def wakeupButton(self):
-        return 'battery_awaken'
-    """
-
 
     def determineInverterType(self, hub, configdict):
         _LOGGER.info(f"{hub.name}: trying to determine inverter type")
@@ -2470,9 +2465,9 @@ class solis_plugin(plugin_base):
         return (genmatch and xmatch and hybmatch and epsmatch and dcbmatch and mpptmatch) and not blacklisted
 
 
-
 plugin_instance = solis_plugin(
-    plugin_name = 'solis', 
+    plugin_name = 'Solis',
+    plugin_manufacturer = 'Ginlog Solis',
     SENSOR_TYPES = SENSOR_TYPES,
     NUMBER_TYPES = NUMBER_TYPES,
     BUTTON_TYPES = BUTTON_TYPES,
