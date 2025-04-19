@@ -293,13 +293,24 @@ class SolaXModbusSensor(SensorEntity):
 
     @callback
     def modbus_data_updated(self):
-        self.async_write_ha_state()
+        """Update callback from hub."""
+        _LOGGER.debug("modbus_data_updated %s %s", self.entity_description.key, self._hub.data.get(self.entity_description.key, 'None'))
+        if self.entity_description.key in self._hub.data:
+            val=self._hub.data.get(self.entity_description.key, None)
+            if self.entity_description.read_scale is not None:
+                try:
+                    val = val*self.entity_description.read_scale # a bit ugly as we might multiply strings or other types with 1
+                except:  # noqa: E722
+                    pass # not a number
+            if val==0:
+                _LOGGER.debug("zero value for %s", self.entity_description.key)
+            self._state = val
+            # Signal state update only if we had chance to get value
+            self.async_write_ha_state()
 
     @callback
     def _update_state(self): # never called because entity is not polled. Each call self.async_write_ha_state() indicates to HA that we already have data.
-        _LOGGER.info(f"update_state {self.entity_description.key} : {self._hub.data.get(self.entity_description.key,'None')}")
-        if self.entity_description.key in self._hub.data:
-            self._state = self._hub.data[self.entity_description.key]
+        _LOGGER.info("Should not be called! sensor._update_state %s : %s", self.entity_description.key, self._hub.data.get(self.entity_description.key, 'None'))
 
     @property
     def name(self):
@@ -308,20 +319,10 @@ class SolaXModbusSensor(SensorEntity):
 
     @property
     def unique_id(self) -> Optional[str]:
+        """Return a unique ID."""
         return f"{self._platform_name}_{self.entity_description.key}"
 
     @property
     def native_value(self):
         """Return the state of the sensor."""
-        val=None
-        if self.entity_description.key in self._hub.data:
-            if self.entity_description.read_scale is None:
-                val= self._hub.data[self.entity_description.key]
-            else:
-                try:
-                    val = self._hub.data[self.entity_description.key]*self.entity_description.read_scale # a bit ugly as we might multiply strings or other types with 1
-                except:
-                    val = self._hub.data[self.entity_description.key] # not a number
-        if val==0:
-            _LOGGER.debug(f"zero value for {self.entity_description.key}")
-        return val
+        return self._state
