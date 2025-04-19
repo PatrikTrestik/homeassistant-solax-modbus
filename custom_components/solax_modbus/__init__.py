@@ -557,6 +557,7 @@ class SolaXModbusHub:
                 error = f"Error: device: {unit} address: {address} -> {exception_error!s}"
                 _LOGGER.error(error)
                 return None
+            
         return resp
 
     async def async_read_input_registers(self, unit, address, count):
@@ -695,7 +696,7 @@ class SolaXModbusHub:
         except ModbusIOException as ex:
             _LOGGER.error(f"ModbusIOError: {ex}")
             res = False
-        except Exception as ex:
+        except Exception:
             _LOGGER.exception("Something went wrong reading from modbus")
             res = False
         return res
@@ -704,7 +705,7 @@ class SolaXModbusHub:
         return_value = None
         val = None
         if self.cyclecount < 5:
-            _LOGGER.debug(f"treating register 0x{descr.register:02x} : {descr.key}")
+            _LOGGER.debug("treating register 0x%02x : %s", descr.register, descr.key)
         try:
             if descr.unit == REGISTER_U16:
                 val = decoder.decode_16bit_uint()
@@ -729,27 +730,17 @@ class SolaXModbusHub:
             else:
                 _LOGGER.warning(f"undefinded unit for entity {descr.key} - setting value to zero")
                 val = 0
-        except Exception as ex:
+        except Exception:
+            val=None
             if self.cyclecount < 5:
                 _LOGGER.warning(
-                    f"{self.name}: read failed at 0x{descr.register:02x}: {descr.key}",
+                    "%s: read failed at 0x%02x: %s", self.name, descr.register, descr.key,
                     exc_info=True,
                 )
             else:
-                _LOGGER.warning(f"{self.name}: read failed at 0x{descr.register:02x}: {descr.key} ")
-        """ TO BE REMOVED
-        if descr.prevent_update:
-            if  (self.tmpdata_expiry.get(descr.key, 0) > time()):
-                val = self.tmpdata.get(descr.key, None)
-                if val == None:
-                    LOGGER.warning(f"cannot find tmpdata for {descr.key} - setting value to zero")
-                    val = 0
-            else: # expired
-                if self.tmpdata_expiry.get(descr.key, 0) > 0: self.localsUpdated = True
-                self.tmpdata_expiry[descr.key] = 0 # update locals only once
-        """
+                _LOGGER.warning("%s: read failed at 0x%02x: %s", self.name, descr.register, descr.key)
 
-        if val == None:  # E.g. if errors have occurred during readout
+        if val is None:  # E.g. if errors have occurred during readout
             return_value = None
         elif type(descr.scale) is dict:  # translate int to string
             return_value = descr.scale.get(val, "Unknown")
@@ -788,9 +779,9 @@ class SolaXModbusHub:
         except Exception as ex:
             errmsg = f"exception {str(ex)} "
         else:
-            if realtime_data.isError():
-                errmsg = f"read_error "
-        if errmsg == None:
+            if realtime_data is None or realtime_data.isError():
+                errmsg = "read_error "
+        if errmsg is None:
             decoder = BinaryPayloadDecoder.fromRegisters(
                 realtime_data.registers,
                 self.plugin.order16,
@@ -830,30 +821,28 @@ class SolaXModbusHub:
                     else:
                         prevreg = reg + 1
             return True
-        else:  # block read failure
-            firstdescr = block.descriptions[block.start]  # check only first item in block
-            if firstdescr.ignore_readerror != False:  # ignore block read errors and return static data
-                for reg in block.regs:
-                    descr = block.descriptions[reg]
-                    if not (type(descr) is dict):
-                        if (descr.ignore_readerror != True) and (descr.ignore_readerror != False):
-                            data[descr.key] = descr.ignore_readerror  # return something static
-                return True
-            else:
-                if self.slowdown == 1:
-                    _LOGGER.info(
-                        f"{errmsg}: {self.name} cannot read {typ} registers at device {self._modbus_addr} position 0x{block.start:x}",
-                        exc_info=True,
-                    )
-                return False
+
+        # block read failure
+        firstdescr = block.descriptions[block.start]  # check only first item in block
+        if firstdescr.ignore_readerror:  # ignore block read errors.
+            # PatrikTrestik: I destroyed idea of "static data". It is never used and too complicated to get working here
+            for reg in block.regs:
+                descr = block.descriptions[reg]
+                if type(descr) is not dict:
+                    data[descr.key] = None  # return HA "unknown"
+            return True
+        if self.slowdown == 1:
+            _LOGGER.info(f"{errmsg}: {self.name} cannot read {typ} registers at device {self._modbus_addr} position 0x{block.start:x}")
+            _LOGGER.debug("Exception info",exc_info=True, stack_info=True)
+        return False
 
     async def async_read_modbus_registers_all(self, group):
         if group.readPreparation is not None:
             if not await group.readPreparation(self.data):
-                _LOGGER.info(f"device group read cancel")
+                _LOGGER.info("Device group read cancel")
                 return True
         else:
-            _LOGGER.debug(f"device group inverter")
+            _LOGGER.debug("device group inverter")
 
         data = {"_repeatUntil": self.data["_repeatUntil"]}
         res = True
@@ -869,11 +858,15 @@ class SolaXModbusHub:
             await self._hass.async_add_executor_job(self.loadLocalData)
         for reg in self.computedSensors:
             descr = self.computedSensors[reg]
-            data[descr.key] = descr.value_function(0, descr, data)
+            try:
+                data[descr.key] = descr.value_function(0, descr, data)
+            except Exception:
+                _LOGGER.warning("computed sensor %s failed", descr.key)
+                data[descr.key] = None
 
         if group.readFollowUp is not None:
             if not await group.readFollowUp(self.data, data):
-                _LOGGER.warning(f"device group check not success")
+                _LOGGER.warning("device group check not success")
                 return True
 
         for key, value in data.items():

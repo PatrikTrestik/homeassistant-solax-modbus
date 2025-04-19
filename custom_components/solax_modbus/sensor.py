@@ -213,7 +213,7 @@ def entityToList(hub, hub_name, entities, groups, newgrp, computedRegs, device_i
                    newdescr.name = name_prefix + newdescr.name
                 except:
                    newdescr.name = newdescr.name
-                   
+
                 newdescr.key = key_prefix + newdescr.key
                 entityToListSingle(hub, hub_name, entities, groups, newgrp, computedRegs, device_info, newdescr, readPreparation, readFollowUp)
 
@@ -281,6 +281,8 @@ class SolaXModbusSensor(SensorEntity):
         self._hub = hub
         self.entity_id = "sensor." + platform_name + "_" + description.key
         self.entity_description: BaseModbusSensorEntityDescription = description
+        self._state = None
+        self.should_poll = False
 
     async def async_added_to_hass(self):
         """Register callbacks."""
@@ -294,7 +296,7 @@ class SolaXModbusSensor(SensorEntity):
         self.async_write_ha_state()
 
     @callback
-    def _update_state(self): # never called ?????
+    def _update_state(self): # never called because entity is not polled. Each call self.async_write_ha_state() indicates to HA that we already have data.
         _LOGGER.info(f"update_state {self.entity_description.key} : {self._hub.data.get(self.entity_description.key,'None')}")
         if self.entity_description.key in self._hub.data:
             self._state = self._hub.data[self.entity_description.key]
@@ -311,7 +313,15 @@ class SolaXModbusSensor(SensorEntity):
     @property
     def native_value(self):
         """Return the state of the sensor."""
+        val=None
         if self.entity_description.key in self._hub.data:
-            try:    val = self._hub.data[self.entity_description.key]*self.entity_description.read_scale # a bit ugly as we might multiply strings or other types with 1
-            except: val = self._hub.data[self.entity_description.key] # not a number
-            return val
+            if self.entity_description.read_scale is None:
+                val= self._hub.data[self.entity_description.key]
+            else:
+                try:
+                    val = self._hub.data[self.entity_description.key]*self.entity_description.read_scale # a bit ugly as we might multiply strings or other types with 1
+                except:
+                    val = self._hub.data[self.entity_description.key] # not a number
+        if val==0:
+            _LOGGER.debug(f"zero value for {self.entity_description.key}")
+        return val
